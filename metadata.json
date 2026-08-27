@@ -1,0 +1,7 @@
+{
+  "name": "Prayagraj Yatra",
+  "description": "Spiritual and heritage tourism app for Prayagraj offering multi-stop itinerary planning, verified Pandas, and local transport.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+
