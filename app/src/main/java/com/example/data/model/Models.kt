@@ -90,6 +90,20 @@ data class User(
 )
 
 /**
+ * User Profile data model matching the public.users database table.
+ */
+@Serializable
+data class UserProfile(
+    val id: String,
+    @SerialName("phone_number") val phoneNumber: String,
+    @SerialName("full_name") val fullName: String,
+    val email: String? = null,
+    val role: String = "PILGRIM",
+    @SerialName("language_preference") val languagePreference: String = "hi",
+    @SerialName("profile_pic_url") val profilePicUrl: String? = null
+)
+
+/**
  * Represents a verified Panda / Priest profile.
  */
 @Serializable
@@ -123,26 +137,6 @@ data class DriverProfile(
     val rating: Double = 5.0
 )
 
-/**
- * Master catalog model for Prayagraj spiritual, ghat, and heritage places.
- */
-@Serializable
-data class Place(
-    val id: String,
-    val name: String,
-    @SerialName("hindi_name") val hindiName: String? = null,
-    val category: String, // "ghat", "temple", "heritage", "monument"
-    val description: String? = null,
-    val latitude: Double,
-    val longitude: Double,
-    @SerialName("step_count") val stepCount: Int = 0,
-    @SerialName("accessibility_level") val accessibilityLevel: AccessibilityLevel = AccessibilityLevel.EASY,
-    @SerialName("opening_hours") val openingHours: String? = null,
-    @SerialName("image_url") val imageUrl: String? = null,
-    @SerialName("entry_fee") val entryFee: Double = 0.0,
-    val featured: Boolean = false,
-    val tags: List<String> = emptyList()
-)
 
 /**
  * Result model returned by the PostGIS `nearby_places` RPC database function.

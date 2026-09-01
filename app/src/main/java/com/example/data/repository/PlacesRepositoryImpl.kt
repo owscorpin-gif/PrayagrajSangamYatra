@@ -1,28 +1,122 @@
 package com.example.data.repository
 
+import com.example.MainApplication
+import com.example.data.local.PlaceDao
+import com.example.data.local.toDomainModel
+import com.example.data.local.toEntity
 import com.example.data.model.AccessibilityLevel
 import com.example.data.model.NearbyPlace
 import com.example.data.model.Place
 import com.example.data.remote.SupabaseProvider
+import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.postgrest.Postgrest
+import io.github.jan.supabase.postgrest.from
 import io.github.jan.supabase.postgrest.query.Order
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import kotlin.math.*
 
 /**
- * Implementation of [PlacesRepository] communicating directly with Supabase Postgrest & PostGIS RPC.
+ * Implementation of [PlacesRepository] communicating directly with Supabase Postgrest & PostGIS RPC,
+ * backed by a local Room database cache for offline availability.
  */
 class PlacesRepositoryImpl(
-    private val postgrest: Postgrest = SupabaseProvider.postgrest
-) : PlacesRepository {
+    private val postgrestProvider: () -> Postgrest = { SupabaseProvider.postgrest },
+    private val clientProvider: () -> SupabaseClient = { SupabaseProvider.client },
+    customDao: PlaceDao? = null
+) : OfflineFirstPlacesRepository {
+
+    private val postgrest: Postgrest get() = postgrestProvider()
+    private val client: SupabaseClient get() = clientProvider()
+
+    private val placeDao: PlaceDao? = customDao ?: try {
+        MainApplication.database.placeDao()
+    } catch (e: Throwable) {
+        null
+    }
+
+    override fun getCachedPlacesFlow(): Flow<List<Place>>? {
+        return placeDao?.getAllPlacesFlow()?.map { list -> list.map { it.toDomainModel() } }
+    }
+
+    override suspend fun getCachedPlaces(category: String?): List<Place> = withContext(Dispatchers.IO) {
+        val cached = if (!category.isNullOrBlank() && !category.equals("all", ignoreCase = true)) {
+            placeDao?.getPlacesByCategory(category)?.map { it.toDomainModel() } ?: emptyList()
+        } else {
+            placeDao?.getAllPlacesList()?.map { it.toDomainModel() } ?: emptyList()
+        }
+
+        if (cached.isNotEmpty()) {
+            cached
+        } else {
+            // If Room is empty, seed it with default Prayagraj curated dataset
+            seedDefaultPlacesToRoom()
+            filterLocalPlaces(category)
+        }
+    }
+
+    override suspend fun cachePlaces(places: List<Place>) = withContext(Dispatchers.IO) {
+        if (places.isNotEmpty()) {
+            try {
+                placeDao?.insertPlaces(places.map { it.toEntity() })
+            } catch (e: Exception) {
+                // Ignore caching errors
+            }
+        }
+    }
+
+    override suspend fun fetchAndSyncRemotePlaces(): List<Place> = withContext(Dispatchers.IO) {
+        if (SupabaseProvider.isConfigured()) {
+            try {
+                val remote = postgrest.from("places").select {
+                    order(column = "name", order = Order.ASCENDING)
+                }.decodeList<Place>()
+                if (remote.isNotEmpty()) {
+                    cachePlaces(remote)
+                    return@withContext remote
+                }
+            } catch (e: Exception) {
+                // Ignore remote network error and fallback to cache
+            }
+        }
+        val cached = getCachedPlaces()
+        if (cached.isEmpty()) {
+            seedDefaultPlacesToRoom()
+            getCachedPlaces()
+        } else {
+            cached
+        }
+    }
+
+    suspend fun getPlaces(): List<Place> = withContext(Dispatchers.IO) {
+        try {
+            val remote = client.from("places")
+                .select()
+                .decodeList<Place>()
+            if (remote.isNotEmpty()) {
+                cachePlaces(remote)
+                remote
+            } else {
+                getCachedPlaces()
+            }
+        } catch (e: Exception) {
+            getCachedPlaces()
+        }
+    }
 
     override suspend fun getPlaces(category: String?): Result<List<Place>> = withContext(Dispatchers.IO) {
+        if (!SupabaseProvider.isConfigured()) {
+            val localCached = getCachedPlaces(category)
+            return@withContext Result.success(localCached)
+        }
+
         try {
             val result = postgrest.from("places").select {
-                if (!category.isNullOrBlank() && category != "all") {
+                if (!category.isNullOrBlank() && !category.equals("all", ignoreCase = true)) {
                     filter {
                         eq("category", category)
                     }
@@ -31,14 +125,18 @@ class PlacesRepositoryImpl(
             }.decodeList<Place>()
 
             if (result.isNotEmpty()) {
+                // Cache freshly fetched places into Room database
+                cachePlaces(result)
                 Result.success(result)
             } else {
-                // Fallback to offline curated Prayagraj data if remote returns empty
-                Result.success(filterLocalPlaces(category))
+                // Fallback to Room cached Prayagraj data if remote returns empty
+                val localCached = getCachedPlaces(category)
+                Result.success(localCached)
             }
         } catch (e: Exception) {
-            // Graceful fallback to offline curated dataset for flawless demonstration & offline use
-            Result.success(filterLocalPlaces(category))
+            // Graceful offline fallback to Room database cache
+            val localCached = getCachedPlaces(category)
+            Result.success(localCached)
         }
     }
 
@@ -47,6 +145,10 @@ class PlacesRepositoryImpl(
         lng: Double,
         radiusMeters: Double
     ): Result<List<NearbyPlace>> = withContext(Dispatchers.IO) {
+        if (!SupabaseProvider.isConfigured()) {
+            return@withContext Result.success(computeLocalNearby(lat, lng, radiusMeters))
+        }
+
         try {
             val params = buildJsonObject {
                 put("lat", lat)
@@ -64,21 +166,53 @@ class PlacesRepositoryImpl(
                 Result.success(computeLocalNearby(lat, lng, radiusMeters))
             }
         } catch (e: Exception) {
-            // Graceful fallback to locally computed PostGIS distance estimation
+            // Graceful fallback to locally computed distance estimation from Room cached places
             Result.success(computeLocalNearby(lat, lng, radiusMeters))
         }
     }
 
     override suspend fun getPlaceById(id: String): Result<Place?> = withContext(Dispatchers.IO) {
+        // Check Room local cache first or remote
+        if (SupabaseProvider.isConfigured()) {
+            try {
+                val place = postgrest.from("places").select {
+                    filter { eq("id", id) }
+                    single()
+                }.decodeSingleOrNull<Place>()
+
+                if (place != null) {
+                    try {
+                        placeDao?.insertPlace(place.toEntity())
+                    } catch (e: Exception) {
+                        // ignore
+                    }
+                    return@withContext Result.success(place)
+                }
+            } catch (e: Exception) {
+                // proceed to cache check
+            }
+        }
+
+        // Room Cache Check
         try {
-            val place = postgrest.from("places").select {
-                filter { eq("id", id) }
-                single()
-            }.decodeSingleOrNull<Place>()
-            
-            Result.success(place ?: PREPOPULATED_PRAYAGRAJ_PLACES.find { it.id == id })
+            val cachedEntity = placeDao?.getPlaceById(id)
+            if (cachedEntity != null) {
+                return@withContext Result.success(cachedEntity.toDomainModel())
+            }
         } catch (e: Exception) {
-            Result.success(PREPOPULATED_PRAYAGRAJ_PLACES.find { it.id == id })
+            // ignore
+        }
+
+        // Fallback to static prepopulated database
+        val fallback = PREPOPULATED_PRAYAGRAJ_PLACES.find { it.id == id }
+        Result.success(fallback)
+    }
+
+    private suspend fun seedDefaultPlacesToRoom() {
+        try {
+            placeDao?.insertPlaces(PREPOPULATED_PRAYAGRAJ_PLACES.map { it.toEntity() })
+        } catch (e: Exception) {
+            // ignore
         }
     }
 
@@ -90,8 +224,15 @@ class PlacesRepositoryImpl(
         }
     }
 
-    private fun computeLocalNearby(lat: Double, lng: Double, radiusMeters: Double): List<NearbyPlace> {
-        return PREPOPULATED_PRAYAGRAJ_PLACES.mapNotNull { place ->
+    private suspend fun computeLocalNearby(lat: Double, lng: Double, radiusMeters: Double): List<NearbyPlace> {
+        val places = try {
+            val roomPlaces = placeDao?.getAllPlacesList()?.map { it.toDomainModel() }
+            if (!roomPlaces.isNullOrEmpty()) roomPlaces else PREPOPULATED_PRAYAGRAJ_PLACES
+        } catch (e: Exception) {
+            PREPOPULATED_PRAYAGRAJ_PLACES
+        }
+
+        return places.mapNotNull { place ->
             val dist = calculateHaversineDistanceMeters(lat, lng, place.latitude, place.longitude)
             if (dist <= radiusMeters) {
                 NearbyPlace(
@@ -262,6 +403,96 @@ class PlacesRepositoryImpl(
                 imageUrl = "https://images.unsplash.com/photo-1600100397608-f010f443b2a3",
                 featured = true,
                 tags = listOf("Ganga-Yamuna Aarti", "Sunset Promenade", "Boating")
+            ),
+            Place(
+                id = "11111111-1111-1111-1111-111111111110",
+                name = "Khusro Bagh",
+                hindiName = "खुसरो बाग",
+                category = "heritage",
+                description = "Grand walled Mughal garden complex housing intricate sandstone mausoleums of Prince Khusro, Shah Begum, and Nithar Begum.",
+                latitude = 25.4418,
+                longitude = 81.8242,
+                stepCount = 6,
+                accessibilityLevel = AccessibilityLevel.WHEELCHAIR_FRIENDLY,
+                openingHours = "06:00 AM - 07:00 PM",
+                imageUrl = "https://images.unsplash.com/photo-1599839575945-a9e5af0c3fa5",
+                featured = true,
+                tags = listOf("Mughal Architecture", "Historic Tombs", "Heritage Garden")
+            ),
+            Place(
+                id = "11111111-1111-1111-1111-111111111111",
+                name = "Mankameshwar Temple",
+                hindiName = "मनकामेश्वर महादेव मंदिर",
+                category = "temple",
+                description = "Historic Shiva temple nestled on the banks of Yamuna river near Saraswati Ghat, frequented for fulfilling heart desires.",
+                latitude = 25.4320,
+                longitude = 81.8610,
+                stepCount = 12,
+                accessibilityLevel = AccessibilityLevel.MODERATE,
+                openingHours = "05:00 AM - 09:30 PM",
+                imageUrl = "https://images.unsplash.com/photo-1609342122563-a43ac8917a3a",
+                featured = true,
+                tags = listOf("Shiva Shrine", "Yamuna Shore", "Pradosh Vrat")
+            ),
+            Place(
+                id = "11111111-1111-1111-1111-111111111112",
+                name = "Allahabad Fort & Ashoka Pillar",
+                hindiName = "प्रयागराज किला एवं अशोक स्तम्भ",
+                category = "heritage",
+                description = "Monumental fortress built in 1583 overlooking the confluence of Ganga and Yamuna, housing the ancient polished Ashoka edict pillar.",
+                latitude = 25.4295,
+                longitude = 81.8760,
+                stepCount = 20,
+                accessibilityLevel = AccessibilityLevel.MODERATE,
+                openingHours = "07:00 AM - 05:00 PM",
+                imageUrl = "https://images.unsplash.com/photo-1590077428593-a55bb07c4665",
+                featured = true,
+                tags = listOf("Mughal Fort", "Ashoka Edict", "Confluence View")
+            ),
+            Place(
+                id = "11111111-1111-1111-1111-111111111113",
+                name = "Someshwar Mahadev Temple",
+                hindiName = "सोमेश्वर महादेव मंदिर (अड़ैल)",
+                category = "temple",
+                description = "Revered ancient subterranean Shiva temple on the southern bank of Yamuna in Arail, associated with Chandra Deva's penance.",
+                latitude = 25.4190,
+                longitude = 81.8740,
+                stepCount = 30,
+                accessibilityLevel = AccessibilityLevel.MODERATE,
+                openingHours = "05:30 AM - 09:00 PM",
+                imageUrl = "https://images.unsplash.com/photo-1544717305-2782549b5136",
+                featured = false,
+                tags = listOf("Arail Ghat", "Subterranean Lingam", "Chandra Deva")
+            ),
+            Place(
+                id = "11111111-1111-1111-1111-111111111114",
+                name = "Dashashwamedh Ghat",
+                hindiName = "दशाश्वमेध घाट",
+                category = "ghat",
+                description = "Ancient sacred ghat where according to mythology Lord Brahma executed ten horse sacrifices (Dash-Ashwamedha Yagna).",
+                latitude = 25.4450,
+                longitude = 81.8700,
+                stepCount = 22,
+                accessibilityLevel = AccessibilityLevel.MODERATE,
+                openingHours = "Open 24 Hours",
+                imageUrl = "https://images.unsplash.com/photo-1596176530529-78163a4f7af2",
+                featured = false,
+                tags = listOf("Vedic Yagna", "Ganga Aarti", "Holy Dip")
+            ),
+            Place(
+                id = "11111111-1111-1111-1111-111111111115",
+                name = "All Saints Cathedral (Patthar Girja)",
+                hindiName = "ऑल सेंट्स कैथेड्रल (पत्थर गिरजा)",
+                category = "heritage",
+                description = "Magnificent 19th-century Victorian Gothic revival style cathedral in Civil Lines crafted with fine cream and red sandstone.",
+                latitude = 25.4528,
+                longitude = 81.8340,
+                stepCount = 5,
+                accessibilityLevel = AccessibilityLevel.WHEELCHAIR_FRIENDLY,
+                openingHours = "08:30 AM - 05:30 PM",
+                imageUrl = "https://images.unsplash.com/photo-1582510003544-4d00b7f74220",
+                featured = false,
+                tags = listOf("Gothic Revival", "Stained Glass", "Civil Lines Heritage")
             )
         )
     }
