@@ -32,7 +32,7 @@ data class RitualBookingUiState(
     val userFeedbackMessage: String? = null
 )
 
-class RitualBookingViewModel(
+class RitualBookingViewModel @JvmOverloads constructor(
     application: Application = MainApplication.instance,
     private val repository: RitualBookingRepository = DatabaseModule.provideRitualBookingRepository(application)
 ) : AndroidViewModel(application) {

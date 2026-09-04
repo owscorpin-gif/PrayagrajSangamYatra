@@ -6,6 +6,7 @@ import androidx.compose.runtime.getValue
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.example.ui.screens.BookingVerificationScreen
 import com.example.ui.screens.ItineraryMapScreen
 import com.example.ui.screens.PandaDirectoryScreen
 import com.example.ui.screens.PhoneAuthScreen
@@ -19,6 +20,7 @@ sealed class Screen(val route: String) {
     data object PlacesMap : Screen("places_map")
     data object ItineraryMap : Screen("itinerary_map")
     data object PandaDirectory : Screen("panda_directory")
+    data object BookingVerification : Screen("booking_verification")
 }
 
 @Composable
@@ -60,6 +62,9 @@ fun AppNavigation(
                 onNavigateToPandaDirectory = {
                     navController.navigate(Screen.PandaDirectory.route)
                 },
+                onNavigateToBookingVerification = {
+                    navController.navigate(Screen.BookingVerification.route)
+                },
                 viewModel = vm
             )
         }
@@ -91,6 +96,21 @@ fun AppNavigation(
         composable(Screen.PandaDirectory.route) {
             PandaDirectoryScreen(
                 onBack = {
+                    navController.popBackStack()
+                }
+            )
+        }
+
+        // 6. Booking Verification & Anti-Fraud Registry Route
+        composable(Screen.BookingVerification.route) {
+            BookingVerificationScreen(
+                onBack = {
+                    navController.popBackStack()
+                },
+                onNavigateToVerifiedPurohits = {
+                    navController.navigate(Screen.PandaDirectory.route)
+                },
+                onNavigateToOfficialBoats = {
                     navController.popBackStack()
                 }
             )

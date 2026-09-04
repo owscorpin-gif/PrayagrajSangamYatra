@@ -1229,6 +1229,7 @@ fun PilgrimSafetyScreen(
     onBack: () -> Unit,
     onNavigateToOfficialBoats: () -> Unit = {},
     onNavigateToVerifiedPurohits: () -> Unit = {},
+    onNavigateToVerification: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Scaffold(
@@ -1262,6 +1263,24 @@ fun PilgrimSafetyScreen(
                         )
                     }
                 },
+                actions = {
+                    IconButton(onClick = onNavigateToVerification) {
+                        Surface(
+                            shape = CircleShape,
+                            color = PolishGreenBg,
+                            modifier = Modifier.size(32.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = Icons.Default.VerifiedUser,
+                                    contentDescription = "Verify Booking",
+                                    tint = PolishGreen,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                        }
+                    }
+                },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = PolishSurface)
             )
         }
@@ -1274,6 +1293,51 @@ fun PilgrimSafetyScreen(
             contentPadding = PaddingValues(top = 12.dp, bottom = 32.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
+            item {
+                // Anti-Fraud Quick Action Card
+                Surface(
+                    shape = RoundedCornerShape(14.dp),
+                    color = PolishGreenBg,
+                    border = BorderStroke(1.dp, PolishGreen.copy(alpha = 0.3f)),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onNavigateToVerification() }
+                ) {
+                    Row(
+                        modifier = Modifier.padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("🛡️", fontSize = 20.sp)
+                            Column {
+                                Text(
+                                    text = "Cross-Reference Booking Against Govt DB",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 12.sp,
+                                    color = PolishGreen
+                                )
+                                Text(
+                                    text = "Verify Purohit certificates, boat passes & avoid fake middlemen.",
+                                    fontSize = 10.sp,
+                                    color = PolishGreen.copy(alpha = 0.8f)
+                                )
+                            }
+                        }
+                        Text(
+                            text = "Verify →",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 12.sp,
+                            color = PolishGreen
+                        )
+                    }
+                }
+            }
+
             item {
                 PilgrimSafetyDashboard(
                     onNavigateToOfficialBoats = onNavigateToOfficialBoats,

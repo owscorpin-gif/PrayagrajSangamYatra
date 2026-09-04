@@ -27,7 +27,7 @@ data class AiGuideUiState(
     )
 )
 
-class AiGuideViewModel(
+class AiGuideViewModel @JvmOverloads constructor(
     private val repository: PilgrimageAiGuideRepository = PilgrimageAiGuideRepositoryImpl()
 ) : ViewModel() {
 

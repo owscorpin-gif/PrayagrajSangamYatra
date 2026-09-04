@@ -41,7 +41,7 @@ data class PandaDirectoryUiState(
     val upcomingBookingsCount: Int = 0
 )
 
-class PandaViewModel(
+class PandaViewModel @JvmOverloads constructor(
     application: Application = MainApplication.instance,
     private val repository: PandaRepository = PandaRepositoryImpl(),
     private val ritualBookingRepository: RitualBookingRepository = DatabaseModule.provideRitualBookingRepository(application)

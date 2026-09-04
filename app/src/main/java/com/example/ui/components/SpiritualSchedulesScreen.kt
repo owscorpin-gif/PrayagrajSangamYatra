@@ -47,6 +47,7 @@ import java.util.Locale
 fun SpiritualSchedulesScreen(
     onBack: () -> Unit = {},
     onNavigateToPurohits: () -> Unit = {},
+    onNavigateToVerification: () -> Unit = {},
     viewModel: RitualBookingViewModel = androidx.lifecycle.viewmodel.compose.viewModel(),
     modifier: Modifier = Modifier
 ) {
@@ -108,6 +109,25 @@ fun SpiritualSchedulesScreen(
                     }
                 },
                 actions = {
+                    IconButton(
+                        onClick = onNavigateToVerification,
+                        modifier = Modifier.testTag("schedules_verify_button")
+                    ) {
+                        Surface(
+                            shape = CircleShape,
+                            color = PolishGreenBg,
+                            modifier = Modifier.size(34.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = Icons.Default.VerifiedUser,
+                                    contentDescription = "Verify Booking",
+                                    tint = PolishGreen,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                        }
+                    }
                     IconButton(
                         onClick = onNavigateToPurohits,
                         modifier = Modifier.testTag("schedules_book_new_button")

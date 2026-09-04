@@ -6,6 +6,8 @@ import com.example.data.repository.PlacesRepository
 import com.example.data.repository.PlacesRepositoryImpl
 import com.example.data.repository.RitualBookingRepository
 import com.example.data.repository.RitualBookingRepositoryImpl
+import com.example.data.repository.BookingVerificationRepository
+import com.example.data.repository.BookingVerificationRepositoryImpl
 
 /**
  * Dependency injection module for Room database and DAO instances.
@@ -105,5 +107,32 @@ object DatabaseModule {
      */
     fun providePlacesRepository(placeDao: PlaceDao): PlacesRepository {
         return PlacesRepositoryImpl(customDao = placeDao)
+    }
+
+    /**
+     * Provides the [VerifiedBookingHistoryDao] instance directly from the [AppDatabase].
+     */
+    fun provideVerifiedBookingHistoryDao(database: AppDatabase): VerifiedBookingHistoryDao {
+        return database.verifiedBookingHistoryDao()
+    }
+
+    /**
+     * Provides the [VerifiedBookingHistoryDao] instance using the application context.
+     */
+    fun provideVerifiedBookingHistoryDao(context: Context): VerifiedBookingHistoryDao {
+        return provideVerifiedBookingHistoryDao(provideDatabase(context))
+    }
+
+    /**
+     * Provides the [BookingVerificationRepository] instance wired with [RitualBookingDao] and [VerifiedBookingHistoryDao].
+     */
+    fun provideBookingVerificationRepository(context: Context): BookingVerificationRepository {
+        val database = provideDatabase(context)
+        val ritualDao = database.ritualBookingDao()
+        val historyDao = database.verifiedBookingHistoryDao()
+        return BookingVerificationRepositoryImpl(
+            ritualBookingDao = ritualDao,
+            historyDao = historyDao
+        )
     }
 }

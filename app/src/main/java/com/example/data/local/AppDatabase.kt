@@ -10,8 +10,13 @@ import androidx.room.TypeConverters
  * Room Database abstract class managing local persistence.
  */
 @Database(
-    entities = [PlaceEntity::class, ItineraryStopEntity::class, RitualBookingEntity::class],
-    version = 3,
+    entities = [
+        PlaceEntity::class,
+        ItineraryStopEntity::class,
+        RitualBookingEntity::class,
+        VerifiedBookingHistoryEntity::class
+    ],
+    version = 4,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -20,6 +25,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun placeDao(): PlaceDao
     abstract fun itineraryDao(): ItineraryDao
     abstract fun ritualBookingDao(): RitualBookingDao
+    abstract fun verifiedBookingHistoryDao(): VerifiedBookingHistoryDao
 
     companion object {
         private const val DATABASE_NAME = "prayagraj_app_database"

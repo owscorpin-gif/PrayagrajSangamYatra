@@ -47,13 +47,17 @@ import com.example.ui.components.HomeScreenGoogleMapSection
 import com.example.ui.components.PilgrimSafetyDashboard
 import com.example.ui.components.PilgrimSafetyScreen
 import com.example.ui.components.SpiritualSchedulesScreen
+import com.example.ui.components.VendorRoleDrawerContent
+import com.example.ui.screens.admin.PurohitAdminDashboardScreen
 import com.example.ui.theme.*
 import com.example.ui.viewmodel.PlacesUiState
 import com.example.ui.viewmodel.PlacesViewModel
+import com.prayagraj.app.ui.navigation.VendorAppNavigation
+import kotlinx.coroutines.launch
 import java.util.Locale
 
 enum class BottomNavTab {
-    HOME, GHATS, PANDAS, SAFETY, AI_GUIDE, MAP, ITINERARY, BOOKINGS, SETTINGS
+    HOME, GHATS, PANDAS, SAFETY, AI_GUIDE, MAP, ITINERARY, BOOKINGS, VERIFICATION, SETTINGS, PUROHIT_ADMIN, VENDOR_PORTAL
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -62,6 +66,7 @@ fun PlacesScreen(
     onSignOut: () -> Unit = {},
     onNavigateToMap: () -> Unit = {},
     onNavigateToPandaDirectory: () -> Unit = {},
+    onNavigateToBookingVerification: () -> Unit = {},
     viewModel: PlacesViewModel = androidx.lifecycle.viewmodel.compose.viewModel(),
     modifier: Modifier = Modifier
 ) {
@@ -76,46 +81,65 @@ fun PlacesScreen(
     var currentTab by remember { mutableStateOf(BottomNavTab.HOME) }
     var selectedServiceModal by remember { mutableStateOf<String?>(null) }
     var focusedPlaceOnMapId by remember { mutableStateOf<String?>(null) }
+    val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
+    val coroutineScope = rememberCoroutineScope()
 
-    Scaffold(
-        modifier = modifier.fillMaxSize(),
-        containerColor = PolishBackground,
-        topBar = {
-            if (currentTab != BottomNavTab.PANDAS && currentTab != BottomNavTab.AI_GUIDE && currentTab != BottomNavTab.GHATS && currentTab != BottomNavTab.SAFETY && currentTab != BottomNavTab.BOOKINGS) {
-                ProfessionalAppBar(
-                    cartCount = uiState.itineraryCart.size,
-                    onProfileClick = { showAuthDialog = true },
-                    onNavigateToMap = onNavigateToMap,
-                    onNavigateToAiGuide = { currentTab = BottomNavTab.AI_GUIDE },
-                    onSignOutClick = { viewModel.logout(onSuccess = onSignOut) }
-                )
-            }
-        },
-        bottomBar = {
-            ProfessionalBottomBar(
-                currentTab = currentTab,
-                cartCount = uiState.itineraryCart.size,
-                onTabSelected = { tab ->
-                    currentTab = tab
-                    if (tab == BottomNavTab.ITINERARY) {
-                        showItinerarySheet = true
-                    }
+    ModalNavigationDrawer(
+        drawerState = drawerState,
+        drawerContent = {
+            VendorRoleDrawerContent(
+                onSelectRoleLogin = { roleKey ->
+                    currentTab = BottomNavTab.VENDOR_PORTAL
+                },
+                onCloseDrawer = {
+                    coroutineScope.launch { drawerState.close() }
                 }
             )
         }
-    ) { innerPadding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-                .background(PolishBackground)
-        ) {
-            if (currentTab != BottomNavTab.PANDAS && currentTab != BottomNavTab.AI_GUIDE && currentTab != BottomNavTab.GHATS && currentTab != BottomNavTab.SAFETY && currentTab != BottomNavTab.BOOKINGS) {
-                OfflineSyncBanner(networkStatus = networkStatus)
+    ) {
+        Scaffold(
+            modifier = modifier.fillMaxSize(),
+            containerColor = PolishBackground,
+            topBar = {
+                if (currentTab != BottomNavTab.PANDAS && currentTab != BottomNavTab.AI_GUIDE && currentTab != BottomNavTab.GHATS && currentTab != BottomNavTab.SAFETY && currentTab != BottomNavTab.BOOKINGS && currentTab != BottomNavTab.VERIFICATION && currentTab != BottomNavTab.PUROHIT_ADMIN && currentTab != BottomNavTab.VENDOR_PORTAL) {
+                    ProfessionalAppBar(
+                        cartCount = uiState.itineraryCart.size,
+                        onOpenDrawer = { coroutineScope.launch { drawerState.open() } },
+                        onProfileClick = { showAuthDialog = true },
+                        onNavigateToMap = onNavigateToMap,
+                        onNavigateToAiGuide = { currentTab = BottomNavTab.AI_GUIDE },
+                        onNavigateToVerification = { currentTab = BottomNavTab.VERIFICATION },
+                        onSignOutClick = { viewModel.logout(onSuccess = onSignOut) }
+                    )
+                }
+            },
+            bottomBar = {
+                if (currentTab != BottomNavTab.VENDOR_PORTAL) {
+                    ProfessionalBottomBar(
+                        currentTab = currentTab,
+                        cartCount = uiState.itineraryCart.size,
+                        onTabSelected = { tab ->
+                            currentTab = tab
+                            if (tab == BottomNavTab.ITINERARY) {
+                                showItinerarySheet = true
+                            }
+                        }
+                    )
+                }
             }
+        ) { innerPadding ->
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(if (currentTab == BottomNavTab.VENDOR_PORTAL) PaddingValues(0.dp) else innerPadding)
+                    .background(PolishBackground)
+            ) {
+                if (currentTab != BottomNavTab.PANDAS && currentTab != BottomNavTab.AI_GUIDE && currentTab != BottomNavTab.GHATS && currentTab != BottomNavTab.SAFETY && currentTab != BottomNavTab.BOOKINGS && currentTab != BottomNavTab.VERIFICATION && currentTab != BottomNavTab.PUROHIT_ADMIN && currentTab != BottomNavTab.VENDOR_PORTAL) {
+                    OfflineSyncBanner(networkStatus = networkStatus)
+                }
 
-            when (currentTab) {
-                BottomNavTab.HOME, BottomNavTab.ITINERARY -> {
+                when (currentTab) {
+                    BottomNavTab.HOME, BottomNavTab.ITINERARY -> {
                     HomeContentView(
                         uiState = uiState,
                         userPhone = userPhone,
@@ -125,6 +149,7 @@ fun PlacesScreen(
                         onNavigateToAiGuide = { currentTab = BottomNavTab.AI_GUIDE },
                         onNavigateToGhats = { currentTab = BottomNavTab.GHATS },
                         onNavigateToSafety = { currentTab = BottomNavTab.SAFETY },
+                        onNavigateToVerification = { currentTab = BottomNavTab.VERIFICATION },
                         onSelectService = { serviceName ->
                             if (serviceName.contains("AI", ignoreCase = true) || serviceName.contains("Guide", ignoreCase = true)) {
                                 currentTab = BottomNavTab.AI_GUIDE
@@ -134,6 +159,8 @@ fun PlacesScreen(
                                 currentTab = BottomNavTab.GHATS
                             } else if (serviceName.contains("Safety", ignoreCase = true) || serviceName.contains("Emergency", ignoreCase = true) || serviceName.contains("Scam", ignoreCase = true)) {
                                 currentTab = BottomNavTab.SAFETY
+                            } else if (serviceName.contains("Verif", ignoreCase = true) || serviceName.contains("QR", ignoreCase = true)) {
+                                currentTab = BottomNavTab.VERIFICATION
                             } else {
                                 selectedServiceModal = serviceName
                             }
@@ -160,6 +187,7 @@ fun PlacesScreen(
                         onBack = { currentTab = BottomNavTab.HOME },
                         onNavigateToOfficialBoats = { currentTab = BottomNavTab.GHATS },
                         onNavigateToVerifiedPurohits = { currentTab = BottomNavTab.PANDAS },
+                        onNavigateToVerification = { currentTab = BottomNavTab.VERIFICATION },
                         modifier = Modifier.fillMaxSize()
                     )
                 }
@@ -193,15 +221,35 @@ fun PlacesScreen(
                     SpiritualSchedulesScreen(
                         onBack = { currentTab = BottomNavTab.HOME },
                         onNavigateToPurohits = { currentTab = BottomNavTab.PANDAS },
+                        onNavigateToVerification = { currentTab = BottomNavTab.VERIFICATION },
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
+                BottomNavTab.VERIFICATION -> {
+                    BookingVerificationScreen(
+                        onBack = { currentTab = BottomNavTab.HOME },
+                        onNavigateToVerifiedPurohits = { currentTab = BottomNavTab.PANDAS },
+                        onNavigateToOfficialBoats = { currentTab = BottomNavTab.GHATS },
                         modifier = Modifier.fillMaxSize()
                     )
                 }
                 BottomNavTab.SETTINGS -> {
                     SettingsOverviewScreen()
                 }
+                BottomNavTab.PUROHIT_ADMIN -> {
+                    PurohitAdminDashboardScreen(
+                        onBack = { currentTab = BottomNavTab.HOME }
+                    )
+                }
+                BottomNavTab.VENDOR_PORTAL -> {
+                    VendorAppNavigation(
+                        onExitVendorPortal = { currentTab = BottomNavTab.HOME }
+                    )
+                }
             }
         }
     }
+}
 
     // Place Details Modal Dialog
     uiState.selectedPlaceForDetails?.let { place ->
@@ -282,9 +330,11 @@ fun PlacesScreen(
 @Composable
 fun ProfessionalAppBar(
     cartCount: Int,
+    onOpenDrawer: () -> Unit = {},
     onProfileClick: () -> Unit,
     onNavigateToMap: () -> Unit = {},
     onNavigateToAiGuide: () -> Unit = {},
+    onNavigateToVerification: () -> Unit = {},
     onSignOutClick: () -> Unit = {}
 ) {
     Row(
@@ -298,11 +348,14 @@ fun ProfessionalAppBar(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // Sacred ॐ Avatar
+            // Sacred ॐ Avatar (Opens Partner / Vendor Role Drawer)
             Surface(
                 shape = CircleShape,
                 color = PolishPrimaryContainer,
-                modifier = Modifier.size(40.dp)
+                modifier = Modifier
+                    .size(40.dp)
+                    .clickable { onOpenDrawer() }
+                    .testTag("open_vendor_drawer_button")
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     Text(
@@ -314,7 +367,9 @@ fun ProfessionalAppBar(
                 }
             }
 
-            Column {
+            Column(
+                modifier = Modifier.clickable { onOpenDrawer() }
+            ) {
                 Text(
                     text = "Prayagraj Sangam Yatra",
                     fontWeight = FontWeight.SemiBold,
@@ -322,7 +377,7 @@ fun ProfessionalAppBar(
                     color = PolishTextPrimary
                 )
                 Text(
-                    text = "PHASE 1 ALPHA",
+                    text = "PHASE 1 ALPHA • SERVICES ▾",
                     fontSize = 10.sp,
                     fontWeight = FontWeight.Bold,
                     letterSpacing = 1.sp,
@@ -335,6 +390,29 @@ fun ProfessionalAppBar(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {
+            // Anti-Fraud / Booking Verification Action Button
+            IconButton(
+                onClick = onNavigateToVerification,
+                modifier = Modifier
+                    .size(40.dp)
+                    .testTag("top_app_bar_verification_button")
+            ) {
+                Surface(
+                    shape = CircleShape,
+                    color = PolishGreenBg,
+                    modifier = Modifier.size(34.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = Icons.Default.VerifiedUser,
+                            contentDescription = "Verify Booking",
+                            tint = PolishGreen,
+                            modifier = Modifier.size(17.dp)
+                        )
+                    }
+                }
+            }
+
             // AI Guide Action Button
             IconButton(
                 onClick = onNavigateToAiGuide,
@@ -431,6 +509,7 @@ fun HomeContentView(
     onNavigateToAiGuide: () -> Unit = {},
     onNavigateToGhats: () -> Unit = {},
     onNavigateToSafety: () -> Unit = {},
+    onNavigateToVerification: () -> Unit = {},
     onSelectService: (String) -> Unit,
     onViewOnMap: (Place) -> Unit = {},
     onExpandFullMap: () -> Unit = {}
@@ -773,6 +852,82 @@ fun HomeContentView(
                     ) {
                         Box(contentAlignment = Alignment.Center) {
                             Text("→", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color(0xFF991B1B))
+                        }
+                    }
+                }
+            }
+        }
+
+        // 2.7 Official Booking & QR Verification Card (Anti-Fraud Registry)
+        item {
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(20.dp))
+                    .clickable { onNavigateToVerification() }
+                    .border(1.dp, PolishGreen.copy(alpha = 0.4f), RoundedCornerShape(20.dp)),
+                shape = RoundedCornerShape(20.dp),
+                color = PolishGreenBg
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Surface(
+                        shape = CircleShape,
+                        color = Color.White,
+                        border = BorderStroke(1.dp, PolishGreen),
+                        modifier = Modifier.size(46.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = Icons.Default.QrCodeScanner,
+                                contentDescription = null,
+                                tint = PolishGreen,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.width(14.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = "Booking Verification Portal",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 14.sp,
+                                color = PolishGreen
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Surface(
+                                shape = RoundedCornerShape(4.dp),
+                                color = PolishGreen
+                            ) {
+                                Text(
+                                    text = "ANTI-FRAUD",
+                                    fontSize = 8.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = Color.White,
+                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                )
+                            }
+                        }
+                        Text(
+                            text = "Enter booking ID or scan pass QR to cross-reference with official Govt registry & prevent fraud.",
+                            fontSize = 11.sp,
+                            color = PolishGreen.copy(alpha = 0.9f),
+                            modifier = Modifier.padding(top = 2.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Surface(
+                        shape = CircleShape,
+                        color = Color.White,
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Text("→", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = PolishGreen)
                         }
                     }
                 }
@@ -1629,6 +1784,12 @@ fun ProfessionalBottomBar(
                 label = "Bookings",
                 isSelected = currentTab == BottomNavTab.BOOKINGS,
                 onClick = { onTabSelected(BottomNavTab.BOOKINGS) }
+            )
+            BottomNavItem(
+                icon = "🛡️",
+                label = "Verify",
+                isSelected = currentTab == BottomNavTab.VERIFICATION,
+                onClick = { onTabSelected(BottomNavTab.VERIFICATION) }
             )
             BottomNavItem(
                 icon = "⚙️",

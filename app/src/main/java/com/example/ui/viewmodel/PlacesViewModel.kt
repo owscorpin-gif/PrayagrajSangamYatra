@@ -50,7 +50,7 @@ data class PlacesUiState(
 /**
  * ViewModel managing Supabase master places catalog, PostGIS nearby RPC execution, and Itinerary cart.
  */
-class PlacesViewModel(
+class PlacesViewModel @JvmOverloads constructor(
     private val repository: OfflineFirstPlacesRepository = PlacesRepositoryImpl(),
     private val connectivityObserver: ConnectivityObserver = try {
         NetworkConnectivityObserver(MainApplication.instance)
