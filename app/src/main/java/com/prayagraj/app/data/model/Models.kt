@@ -21,26 +21,27 @@ data class VendorProfileDto(
 
 @Serializable
 data class AccommodationDto(
-    val id: String? = null,
+    @SerialName("id") val id: String? = null,
     @SerialName("owner_id") val ownerId: String,
     @SerialName("property_name") val propertyName: String,
-    @SerialName("property_type") val propertyType: String, // Dharamshala / Hotel
-    val address: String,
-    @SerialName("registration_license_id") val registrationLicenseId: String = "",
+    @SerialName("property_type") val propertyType: String,
+    @SerialName("address") val address: String,
+    @SerialName("registration_license_id") val registrationLicenseId: String? = null,
     @SerialName("contact_number") val contactNumber: String,
-    @SerialName("is_verified") val isVerified: Boolean = false
+    @SerialName("is_verified") val isVerified: Boolean = false,
+    @SerialName("image_url") val imageUrl: String? = null
 )
 
 @Serializable
 data class RoomInventoryDto(
-    val id: String? = null,
+    @SerialName("id") val id: String? = null,
     @SerialName("property_id") val propertyId: String,
     @SerialName("room_category") val roomCategory: String,
     @SerialName("total_rooms") val totalRooms: Int,
     @SerialName("available_rooms") val availableRooms: Int,
     @SerialName("base_tariff") val baseTariff: Double,
     @SerialName("peak_mela_tariff") val peakMelaTariff: Double,
-    val amenities: List<String> = listOf("Clean Linen", "Water")
+    @SerialName("amenities") val amenities: List<String> = listOf("Clean Linen", "Hot Water")
 )
 
 @Serializable
@@ -100,3 +101,15 @@ data class TourPackageDto(
     @SerialName("is_active") val isActive: Boolean = true
 )
 
+@Serializable
+data class BookingRequestDto(
+    @SerialName("id") val id: String,
+    @SerialName("vendor_id") val vendorId: String,
+    @SerialName("customer_name") val customerName: String,
+    @SerialName("customer_phone") val customerPhone: String,
+    @SerialName("service_title") val serviceTitle: String,
+    @SerialName("booking_date") val bookingDate: String,
+    @SerialName("amount") val amount: Double,
+    @SerialName("status") val status: String = "PENDING", // PENDING, ACCEPTED, REJECTED
+    @SerialName("created_at") val createdAt: String
+)

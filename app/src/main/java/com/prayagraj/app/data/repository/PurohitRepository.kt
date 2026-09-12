@@ -1,9 +1,8 @@
 package com.prayagraj.app.data.repository
 
-import com.example.data.model.PurohitServiceDto
+import com.prayagraj.app.data.model.PurohitServiceDto
+import com.prayagraj.app.data.remote.SupabaseProvider
 import com.example.data.model.VendorProfileDto
-import com.example.data.remote.SupabaseProvider
-import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.postgrest.from
 import io.github.jan.supabase.realtime.PostgresAction
 import io.github.jan.supabase.realtime.channel
@@ -16,6 +15,8 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 
 class PurohitRepository {
+    private val postgrest = SupabaseProvider.postgrest
+    private val auth = SupabaseProvider.auth
     private val client = SupabaseProvider.client
     private val json = Json { ignoreUnknownKeys = true }
 
@@ -32,45 +33,84 @@ class PurohitRepository {
         PurohitServiceDto(
             id = "srv-101",
             purohitId = "purohit-demo-01",
-            ritualName = "Triveni Sangam Snan & Maha Sankalp Vidhi",
-            description = "Authentic Vedic Sankalp at holy Sangam confluence with Gangajal, milk, flowers & Vedic mantras.",
-            fixedDakshina = 501.0,
-            durationMinutes = 45,
-            materialsIncluded = true
+            poojaName = "Triveni Sangam Snan & Maha Sankalp Vidhi",
+            category = "Sangam Snan",
+            durationHours = 0.75,
+            baseDakshina = 501.0,
+            samagriIncluded = true,
+            samagriExtraCost = 0.0,
+            languagesSupported = listOf("Hindi", "Sanskrit"),
+            description = "Authentic Vedic Sankalp at holy Sangam confluence with Gangajal, milk, flowers & Vedic mantras."
         ),
         PurohitServiceDto(
             id = "srv-102",
             purohitId = "purohit-demo-01",
-            ritualName = "Pitru Tarpan & Pind Daan (Sangam Ghat)",
-            description = "Complete ancestral rites according to Garud Purana with sesame, kusha, and holy oblations.",
-            fixedDakshina = 1100.0,
-            durationMinutes = 75,
-            materialsIncluded = true
+            poojaName = "Pitru Tarpan & Pind Daan (Sangam Ghat)",
+            category = "Pind Daan",
+            durationHours = 1.25,
+            baseDakshina = 1100.0,
+            samagriIncluded = true,
+            samagriExtraCost = 250.0,
+            languagesSupported = listOf("Hindi", "Sanskrit"),
+            description = "Complete ancestral rites according to Garud Purana with sesame, kusha, and holy oblations."
         ),
         PurohitServiceDto(
             id = "srv-103",
             purohitId = "purohit-demo-01",
-            ritualName = "Rudrabhishek Puja & Ganga Aarti Darshan",
-            description = "Special Shiva Abhishek with Panchamrit and bilva leaves followed by evening Ganga Deep Daan.",
-            fixedDakshina = 2100.0,
-            durationMinutes = 60,
-            materialsIncluded = true
+            poojaName = "Rudrabhishek Puja & Ganga Aarti Darshan",
+            category = "Abhishek",
+            durationHours = 1.0,
+            baseDakshina = 2100.0,
+            samagriIncluded = true,
+            samagriExtraCost = 500.0,
+            languagesSupported = listOf("Hindi", "Sanskrit"),
+            description = "Special Shiva Abhishek with Panchamrit and bilva leaves followed by evening Ganga Deep Daan."
         ),
         PurohitServiceDto(
             id = "srv-104",
             purohitId = "purohit-demo-01",
-            ritualName = "Veni Daan Ritual (Married Couples Rites)",
-            description = "Traditional Prayag Veni Daan for longevity and spiritual marital bliss at Sangam.",
-            fixedDakshina = 751.0,
-            durationMinutes = 30,
-            materialsIncluded = true
+            poojaName = "Veni Daan Ritual (Married Couples Rites)",
+            category = "Veni Daan",
+            durationHours = 0.5,
+            baseDakshina = 751.0,
+            samagriIncluded = true,
+            samagriExtraCost = 0.0,
+            languagesSupported = listOf("Hindi", "Sanskrit"),
+            description = "Traditional Prayag Veni Daan for longevity and spiritual marital bliss at Sangam."
         )
     )
 
     fun getCurrentUserId(): String? = try {
-        client.auth.currentUserOrNull()?.id ?: "purohit-demo-01"
+        auth.currentUserOrNull()?.id ?: "purohit-demo-01"
     } catch (e: Exception) {
         "purohit-demo-01"
+    }
+
+    suspend fun createPoojaService(service: PurohitServiceDto): Result<PurohitServiceDto> =
+        withContext(Dispatchers.IO) {
+            runCatching {
+                val userId = auth.currentUserOrNull()?.id
+                    ?: throw IllegalStateException("User unauthenticated")
+
+                val dtoWithUser = service.copy(purohitId = userId)
+
+                postgrest["purohit_services"]
+                    .insert(dtoWithUser) { select() }
+                    .decodeSingle<PurohitServiceDto>()
+            }
+        }
+
+    // Save or Update Profile
+    suspend fun saveProfile(profile: VendorProfileDto): Result<VendorProfileDto> = withContext(Dispatchers.IO) {
+        runCatching {
+            if (SupabaseProvider.isConfigured()) {
+                client.from("vendor_profiles")
+                    .upsert(profile) { select() }
+                    .decodeSingle<VendorProfileDto>()
+            } else {
+                profile
+            }
+        }
     }
 
     // Fetch Profile

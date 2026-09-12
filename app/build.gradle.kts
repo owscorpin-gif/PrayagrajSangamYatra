@@ -87,6 +87,7 @@ dependencies {
   implementation(libs.supabase.realtime)
   implementation(libs.supabase.storage)
   implementation(libs.ktor.client.okhttp)
+  implementation(libs.ktor.client.android)
   implementation(libs.kotlinx.serialization.json)
 
   // implementation(libs.accompanist.permissions)
@@ -112,6 +113,7 @@ dependencies {
   implementation(libs.coil.compose)
   implementation(libs.converter.moshi)
   implementation(libs.firebase.ai)
+  implementation(libs.firebase.messaging)
   // Uncomment to use Firestore:
   // implementation(libs.firebase.firestore)
 
@@ -152,5 +154,5 @@ dependencies {
   debugImplementation(libs.androidx.compose.ui.test.manifest)
   debugImplementation(libs.androidx.compose.ui.tooling)
   "ksp"(libs.androidx.room.compiler)
-  "ksp"(libs.moshi.kotlin.codegen)
+  // Unused: "ksp"(libs.moshi.kotlin.codegen)
 }

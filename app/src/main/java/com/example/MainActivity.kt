@@ -16,6 +16,8 @@ import com.example.data.util.LocationUtils
 import com.example.ui.navigation.AppNavigation
 import com.example.ui.theme.MyApplicationTheme
 import com.example.ui.viewmodel.PlacesViewModel
+import com.google.firebase.messaging.FirebaseMessaging
+import com.prayagraj.app.service.VendorFcmService
 
 class MainActivity : ComponentActivity() {
 
@@ -45,6 +47,21 @@ class MainActivity : ComponentActivity() {
 
         // Check and request fine-grained location permission if not already granted
         requestLocationPermissionIfNeeded()
+
+        // Retrieve and sync FCM Token to Supabase if Firebase is initialized
+        try {
+            if (com.google.firebase.FirebaseApp.getApps(this).isNotEmpty()) {
+                FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
+                    if (task.isSuccessful) {
+                        task.result?.let { token ->
+                            VendorFcmService.syncTokenToSupabase(token)
+                        }
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            android.util.Log.w("MainActivity", "Firebase not initialized, skipping FCM token sync: ${e.message}")
+        }
 
         setContent {
             MyApplicationTheme {
